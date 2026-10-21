@@ -1,0 +1,222 @@
+# BusTiket - Online Bus Ticket App
+
+A desktop bus ticket booking application built with **Java Swing** and **MySQL (JDBC)**.
+Users can register, search buses by route and date, filter the results, book tickets,
+cancel tickets, and print an e-ticket.
+
+**Author:** Ansel Makai
+
+---
+
+## Features
+
+| Category | Features |
+|---|---|
+| Account | Register, login, passwords stored as SHA-256 hashes, logout |
+| Profile | Round profile photo (change/delete), name initial shown when no photo is set |
+| Search | Origin and destination cities, suggestion lists (boarding points and popular cities), swap button, calendar, Today/Tomorrow shortcuts |
+| Filters | Bus type (AC, Non AC, Sleeper, Seater), price range (two-handle slider), departure time, bus partner, boarding point |
+| Booking | Select a bus, choose the number of seats (1-10), confirm the total price, seats are deducted automatically |
+| My Tickets | Ticket list with colored status badges (Booked/Cancelled), total/booked/cancelled statistics |
+| Cancellation | Cancel a ticket, seats are returned automatically |
+| Delete ticket | Permanently remove a ticket that has already been cancelled |
+| Printing | View the e-ticket and print it through the printer dialog |
+| Data safety | All queries use `PreparedStatement`; booking and cancellation use database transactions |
+
+## Technologies
+
+- **Language:** Java 17+ (recommended)
+- **GUI:** Java Swing (custom components: cards, round buttons, range slider, styled tables)
+- **Database:** MySQL 8.0+
+- **Connection:** JDBC with `mysql-connector-j` 8.4.0
+- **IDE:** IntelliJ IDEA
+
+## Project Structure
+
+```
+bustiketproject/
+├── src/
+│   ├── Main.java               # application entry point
+│   ├── LoginFrame.java         # login screen
+│   ├── RegisterFrame.java      # registration screen
+│   ├── DashboardFrame.java     # search, results, my tickets, account
+│   ├── BackgroundPanel.java    # panel with a background image
+│   ├── CardPanel.java          # white rounded card panel
+│   ├── Theme.java              # shared colors, fonts, buttons, inputs
+│   ├── TableStyler.java        # extra table styling
+│   ├── PasswordUtil.java       # SHA-256 hashing
+│   └── DatabaseConnection.java # JDBC connection
+├── bus-station.png             # background image
+├── database.sql                # schema and sample data (import this file)
+├── screenshots/                # screenshots used in this documentation
+└── README.md
+```
+
+## Installation
+
+### 1. Prerequisites
+
+- JDK 17 or newer
+- MySQL Server 8.0 or newer (MySQL Workbench is optional)
+- `mysql-connector-j-8.4.0.jar` (download it from the official MySQL website, or use the copy in the `lib/` folder)
+
+### 2. Import the database
+
+Just **one file**:
+
+- **MySQL Workbench:** `File > Open SQL Script` > select `database.sql` > click the lightning icon.
+- **Terminal:**
+  ```bash
+  mysql -u root -p < database.sql
+  ```
+
+This creates the `bus_ticket_db` database, the `users`, `buses`, and `bookings` tables, about 900 bus
+schedules for the **next 14 days counted from the day you import**, and one demo account.
+
+> **Warning:** the script runs `DROP TABLE`, so importing it again deletes existing users and bookings.
+>
+> If the demo dates pass and no buses are left, run `CALL generate_bus_schedule(14);`
+> in the `bus_ticket_db` database.
+
+### 3. Configure the database connection
+
+Open `src/DatabaseConnection.java` and set `USER` and `PASSWORD` to match the MySQL server on your computer:
+
+```java
+private static final String URL = "jdbc:mysql://localhost:3306/bus_ticket_db";
+private static final String USER = "root";
+private static final String PASSWORD = "your_mysql_password";
+```
+
+### 4. Add the MySQL library (if not added yet)
+
+IntelliJ IDEA: `File > Project Structure > Libraries > + > Java` > select `mysql-connector-j-8.4.0.jar`.
+
+## Running the App
+
+**From IntelliJ IDEA:** open the project, right-click `Main.java`, and choose **Run 'Main.main()'**.
+
+**From the terminal** (Windows, run from the project folder):
+
+```bash
+javac -cp "lib/mysql-connector-j-8.4.0.jar" -d out src/*.java
+java -cp "out;lib/mysql-connector-j-8.4.0.jar" Main
+```
+
+(On Linux/macOS, replace `;` with `:`.) Make sure `bus-station.png` is in the project folder or in `src/`.
+
+## Demo Account
+
+| Email | Password |
+|---|---|
+| `demo@bustiket.com` | `demo1234` |
+
+You can also create your own account with the **Register** button.
+
+## Available Routes
+
+Rajkot, Ahmedabad, Surat, Mumbai, Pune, Vadodara, and Jamnagar (both directions, several departures per day).
+A search that always returns results: **Rajkot to Ahmedabad** on today's date.
+
+## Demo Scenario
+
+1. **Register** a new account, then **log in**.
+2. Search **Rajkot to Ahmedabad** and try the bus type, price, and departure time filters.
+3. Select a bus, set the number of seats, and click **Book Ticket**. Search again and see the seats decrease.
+4. Open **My Tickets**, select a ticket, click **View Ticket**, then **Print**.
+5. Click **Cancel Ticket**, search for the same bus again, and see the seats return.
+6. Open **My Account** and change the profile photo.
+
+## Screenshots
+
+Save your screenshots in the `screenshots/` folder and they will appear here:
+
+| Login | Search |
+|---|---|
+| ![Login](screenshots/01-login.png) | ![Search](screenshots/02-search.png) |
+
+| Results + Filters | My Tickets |
+|---|---|
+| ![Results](screenshots/03-results.png) | ![My Tickets](screenshots/04-my-tickets.png) |
+
+| E-Ticket |
+|---|
+| ![E-Ticket](screenshots/05-ticket.png) |
+
+## Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    USERS ||--o{ BOOKINGS : "makes"
+    BUSES ||--o{ BOOKINGS : "is booked in"
+
+    USERS {
+        int id PK
+        varchar name
+        varchar email UK
+        char password "SHA-256 hash"
+        timestamp created_at
+    }
+    BUSES {
+        int id PK
+        varchar bus_name
+        varchar source
+        varchar destination
+        date travel_date
+        varchar departure_time
+        decimal price
+        int available_seats
+        varchar bus_type
+        varchar boarding_point
+    }
+    BOOKINGS {
+        int id PK
+        int user_id FK
+        int bus_id FK
+        int seats
+        decimal total_price
+        varchar status "BOOKED / CANCELLED"
+        timestamp booked_at
+    }
+```
+
+One user can have many bookings, and one bus (schedule) can appear in many bookings.
+
+## Application Flow
+
+```mermaid
+flowchart TD
+    A([Start]) --> B[Login]
+    B -->|no account yet| C[Register] --> B
+    B -->|success| D[Dashboard]
+    D --> E[Search buses: origin, destination, date]
+    E --> F[Results + Filters]
+    F --> G[Select bus + number of seats]
+    G --> H{Enough seats?}
+    H -->|yes| I[Booking saved, seats deducted]
+    H -->|no| F
+    D --> J[My Tickets]
+    J --> K[View / Print Ticket]
+    J --> L[Cancel Ticket: seats returned]
+    J --> M[Delete Ticket: cancelled only]
+    D --> N[My Account: profile photo]
+    D --> O[Logout] --> B
+```
+
+## Technical Notes
+
+- **Preventing double booking:** seats are deducted with
+  `UPDATE buses SET available_seats = available_seats - ? WHERE id = ? AND available_seats >= ?`
+  inside a transaction. If there are not enough seats, zero rows are updated and the transaction is rolled back.
+- **Cancellation** sets the status to `CANCELLED` and returns the seats in a single transaction.
+- **Profile photos** are stored in the user's home folder: `~/.bustiket/profile_<id>.png`.
+
+## Troubleshooting
+
+| Problem | Solution |
+|---|---|
+| `Access denied for user 'root'` | The password in `DatabaseConnection.java` does not match your MySQL password |
+| `No suitable driver found` | The `mysql-connector-j` library has not been added to the project |
+| `Unknown database 'bus_ticket_db'` | `database.sql` has not been imported yet |
+| Search finds no buses | The date is outside the 14-day schedule; run `CALL generate_bus_schedule(14);` |
+| Background image missing (gradient shown instead) | Put `bus-station.png` in the project folder or in `src/` |
